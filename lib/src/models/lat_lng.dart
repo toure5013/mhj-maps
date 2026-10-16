@@ -21,7 +21,7 @@ class MhjMapsLatLng {
     required this.lng,
   });
 
-  static final _distance = ll.Distance();
+  static const _distance = ll.Distance();
 
   /// `true` if lat ∈ [-90, 90] and lng ∈ [-180, 180].
   bool get isValid => lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180;

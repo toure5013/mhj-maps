@@ -573,8 +573,6 @@ class _MhjMapsMapState extends State<MhjMapsMap> {
   late MhjMapsMapController _controller;
   MhjMapsLocationService? _locationService;
   StreamSubscription<MhjMapsLocationData>? _locationSub;
-  MhjMapsLatLng? _userPosition;
-  double? _userHeading;
   double _currentZoom = 13;
   MhjMapsLatLng _currentCenter = const MhjMapsLatLng(lat: 0, lng: 0);
   bool _following = false;
@@ -658,10 +656,6 @@ class _MhjMapsMapState extends State<MhjMapsMap> {
 
   void _onFix(MhjMapsLocationData fix) {
     if (!mounted) return;
-    setState(() {
-      _userPosition = fix.position;
-      _userHeading = fix.headingDegrees;
-    });
     _controller.updateUserLocation(
       fix.position,
       accuracyMeters: fix.accuracyMeters,

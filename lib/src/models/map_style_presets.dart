@@ -17,10 +17,10 @@ class MapStylePresets {
   static const PolylineStyle defaultPolyline = PolylineStyle();
 
   static final List<MapStylePreset> presets = [
-    MapStylePreset(
+    const MapStylePreset(
       id: 'default',
       name: 'Default',
-      style: const MapStyle(
+      style: MapStyle(
         id: 'default',
         name: 'Default',
         theme: MapTheme.light,
