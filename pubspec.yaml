@@ -3,7 +3,7 @@ description: >-
   The open-source Maps SDK for Flutter. Zero API keys, zero cost.
   High-performance routing, geocoding, autocomplete, and fully customizable
   map rendering powered by OpenStreetMap.
-version: 1.2.5
+version: 2.0.0
 homepage: https://github.com/toure5013/mhj-maps
 repository: https://github.com/toure5013/mhj-maps
 issue_tracker: https://github.com/toure5013/mhj-maps/issues
@@ -28,6 +28,7 @@ dependencies:
   http: ^1.2.0
   collection: ^1.17.0
   flutter_svg: ^2.2.4
+  geolocator: ^14.1.1
 
 dev_dependencies:
   flutter_test:

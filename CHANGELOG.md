@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- **Google Maps style import** — new `GoogleMapStyle` model (`GoogleMapStyle.fromJson`)
+  that parses Google Maps Styling Wizard JSON into `MapColors` + `LayerVisibility`,
+  with built-in `GoogleMapStyle.silver()`, `.retro()` and `.dark()` factories.
+- New `Silver`, `Retro` and `Dark Classic` presets in `MapStylePresets`.
+- New `MhjMapsMapThemes.silver` (CartoDB Positron),
+  `MhjMapsMapThemes.retro` (Stamen Terrain) and
+  `MhjMapsMapThemes.darkClassic` (CartoDB Dark Matter) raster equivalents.
+
 ## [1.2.3] - 2026-04-11
 
 ### Changed

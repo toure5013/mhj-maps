@@ -235,6 +235,78 @@ class MhjMapsMapThemes {
     category: MapThemeCategory.minimal,
   );
 
+  /// Silver — équivalent raster du style Google Maps "Silver".
+  ///
+  /// Reproduit ton JSON : fond #f5f5f5, routes #ffffff, eau #c9c9c9,
+  /// parcs #e5e5e5, labels #616161, icônes masquées.
+  /// Basé sur CartoDB Positron (le rendu raster le plus proche),
+  /// avec itinéraires bleus pour garder le contraste.
+  ///
+  /// ```dart
+  /// MhjMapsMap(
+  ///   center: MhjMapsLatLng(lat: 48.85, lng: 2.35),
+  ///   theme: MhjMapsMapThemes.silver,
+  /// )
+  /// ```
+  static const MhjMapsMapTheme silver = MhjMapsMapTheme(
+    id: 'silver',
+    name: 'Silver',
+    description: 'Google-style silver: light gray, white roads, muted water.',
+    tileProvider: MhjMapsTileProvider.cartoPositron,
+    polylineColor: '#3b82f6',
+    markerColor: '#616161',
+    isDark: false,
+    category: MapThemeCategory.minimal,
+  );
+
+  /// Retro — équivalent raster du style Google Maps "Retro".
+  ///
+  /// Fond papier #ebe3cd, routes crème #f5f1e6, highways jaunes #f8c967,
+  /// eau #b9d3c2, parcs #a5b076. Basé sur Stamen Terrain
+  /// (tons chauds les plus proches en raster), avec itinéraires orange
+  /// #e98d58 pour garder le contraste.
+  ///
+  /// ```dart
+  /// MhjMapsMap(
+  ///   center: MhjMapsLatLng(lat: 48.85, lng: 2.35),
+  ///   theme: MhjMapsMapThemes.retro,
+  /// )
+  /// ```
+  static const MhjMapsMapTheme retro = MhjMapsMapTheme(
+    id: 'retro',
+    name: 'Retro',
+    description: 'Google-style retro: warm paper, cream roads, yellow highways.',
+    tileProvider: MhjMapsTileProvider.stamenTerrain,
+    polylineColor: '#e98d58',
+    markerColor: '#523735',
+    isDark: false,
+    category: MapThemeCategory.artistic,
+  );
+
+  /// Dark Classic — équivalent raster du style Google Maps "Dark".
+  ///
+  /// Fond #212121, routes #2c2c2c, eau noire #000000, labels #757575,
+  /// icônes et parcelles masquées. Basé sur CartoDB Dark Matter
+  /// (le rendu raster le plus proche), avec itinéraires gris clair
+  /// pour rester lisibles sur fond sombre.
+  ///
+  /// ```dart
+  /// MhjMapsMap(
+  ///   center: MhjMapsLatLng(lat: 48.85, lng: 2.35),
+  ///   theme: MhjMapsMapThemes.darkClassic,
+  /// )
+  /// ```
+  static const MhjMapsMapTheme darkClassic = MhjMapsMapTheme(
+    id: 'dark_classic',
+    name: 'Dark Classic',
+    description: 'Google-style dark: charcoal map with light gray routes.',
+    tileProvider: MhjMapsTileProvider.cartoDarkMatter,
+    polylineColor: '#bdbdbd',
+    markerColor: '#bdbdbd',
+    isDark: true,
+    category: MapThemeCategory.dark,
+  );
+
   /// Deep space / neon theme.
   static const MhjMapsMapTheme midnight = MhjMapsMapTheme(
     id: 'midnight',
@@ -251,12 +323,15 @@ class MhjMapsMapThemes {
   static List<MhjMapsMapTheme> get all => [
         standard,
         cleanLight,
+        silver,
+        retro,
         voyager,
         blankCanvas,
         professional,
         whisper,
         darkElegant,
         darkSilent,
+        darkClassic,
         topographic,
         cycling,
         humanitarianMap,

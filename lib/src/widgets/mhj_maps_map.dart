@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
@@ -5,6 +6,9 @@ import 'package:flutter_svg/flutter_svg.dart';
 import '../models/lat_lng.dart';
 import '../models/tile_provider.dart';
 import '../models/map_theme.dart';
+import '../models/map_options.dart';
+import '../services/location_service.dart';
+import 'scale_bar.dart';
 
 /// Controller to interact with a [MhjMapsMap] widget programmatically.
 ///
@@ -28,6 +32,9 @@ class MhjMapsMapController {
   final List<Polyline> _polylines = [];
   final List<CircleMarker> _circles = [];
   final Function() _onUpdate;
+
+  Marker? _userMarker;
+  CircleMarker? _accuracyCircle;
 
   /// Default color for markers if none is specified.
   Color defaultMarkerColor = const Color(0xFF3b82f6);
@@ -137,9 +144,8 @@ class MhjMapsMapController {
     double height = 40,
     Alignment alignment = Alignment.center,
   }) {
-    final svgFilter = color != null
-        ? ColorFilter.mode(color, BlendMode.srcIn)
-        : null;
+    final svgFilter =
+        color != null ? ColorFilter.mode(color, BlendMode.srcIn) : null;
 
     final svgWidget = isNetwork
         ? SvgPicture.network(
@@ -172,6 +178,9 @@ class MhjMapsMapController {
 
   /// Returns the current number of markers.
   int get markerCount => _markers.length;
+
+  /// Read-only markers (for persistence across rebuilds).
+  List<Marker> get markers => List.unmodifiable(_markers);
 
   // ─── Routes / Polylines ─────────────────────────────────────────────
 
@@ -214,6 +223,9 @@ class MhjMapsMapController {
     _onUpdate();
   }
 
+  /// Read-only polylines.
+  List<Polyline> get polylines => List.unmodifiable(_polylines);
+
   // ─── Circles ────────────────────────────────────────────────────────
 
   /// Adds a circle overlay on the map.
@@ -240,6 +252,64 @@ class MhjMapsMapController {
   /// Removes all circles from the map.
   void clearCircles() {
     _circles.clear();
+    _onUpdate();
+  }
+
+  // ─── User location ──────────────────────────────────────────────────
+
+  /// Shows/updates the blue-dot user location + accuracy circle.
+  void updateUserLocation(
+    MhjMapsLatLng position, {
+    double accuracyMeters = 20,
+    double? headingDegrees,
+    Widget? marker,
+    Color accuracyColor = const Color(0xFF3b82f6),
+  }) {
+    _accuracyCircle = CircleMarker(
+      point: LatLng(position.lat, position.lng),
+      radius: accuracyMeters,
+      useRadiusInMeter: true,
+      color: accuracyColor.withValues(alpha: 0.15),
+      borderColor: accuracyColor.withValues(alpha: 0.5),
+      borderStrokeWidth: 1.5,
+    );
+    Widget dot = marker ??
+        Container(
+          width: 22,
+          height: 22,
+          decoration: BoxDecoration(
+            color: accuracyColor,
+            shape: BoxShape.circle,
+            border: Border.all(color: Colors.white, width: 3),
+            boxShadow: [
+              BoxShadow(
+                color: accuracyColor.withValues(alpha: 0.4),
+                blurRadius: 10,
+                spreadRadius: 2,
+              ),
+            ],
+          ),
+        );
+    if (headingDegrees != null) {
+      dot = Transform.rotate(
+        angle: headingDegrees * (3.1415926535 / 180),
+        child: dot,
+      );
+    }
+    _userMarker = Marker(
+      point: LatLng(position.lat, position.lng),
+      width: 40,
+      height: 40,
+      alignment: Alignment.center,
+      child: dot,
+    );
+    _onUpdate();
+  }
+
+  /// Hides the user location dot.
+  void clearUserLocation() {
+    _userMarker = null;
+    _accuracyCircle = null;
     _onUpdate();
   }
 
@@ -285,6 +355,12 @@ class MhjMapsMapController {
     _mapController.move(LatLng(position.lat, position.lng), zoom);
   }
 
+  /// Animated move (simple two-step: move keeps flutter_map animation).
+  void animateTo(MhjMapsLatLng position, {double? zoom}) {
+    final z = zoom ?? _mapController.camera.zoom;
+    _mapController.move(LatLng(position.lat, position.lng), z);
+  }
+
   /// Zooms in by one level.
   void zoomIn() {
     final currentZoom = _mapController.camera.zoom;
@@ -308,13 +384,25 @@ class MhjMapsMapController {
   }
 
   /// Current zoom level.
-  double get currentZoom => _mapController.camera.zoom;
+  double get currentZoom {
+    try {
+      return _mapController.camera.zoom;
+    } catch (_) {
+      return 13.0;
+    }
+  }
 
   /// Current center of the map.
-  MhjMapsLatLng get currentCenter => MhjMapsLatLng(
+  MhjMapsLatLng get currentCenter {
+    try {
+      return MhjMapsLatLng(
         lat: _mapController.camera.center.latitude,
         lng: _mapController.camera.center.longitude,
       );
+    } catch (_) {
+      return const MhjMapsLatLng(lat: 0, lng: 0);
+    }
+  }
 
   // ─── Bulk Operations ────────────────────────────────────────────────
 
@@ -337,41 +425,15 @@ class MhjMapsMapController {
 /// )
 /// ```
 ///
-/// ## With a Theme
+/// ## With live user location + follow
 /// ```dart
 /// MhjMapsMap(
-///   center: MhjMapsLatLng(lat: 48.8566, lng: 2.3522),
-///   theme: MhjMapsMapThemes.darkElegant,
-/// )
-/// ```
-///
-/// ## With Custom Tile Provider
-/// ```dart
-/// MhjMapsMap(
-///   center: MhjMapsLatLng(lat: 48.8566, lng: 2.3522),
-///   tileProvider: MhjMapsTileProvider.cartoVoyager,
-/// )
-/// ```
-///
-/// ## Full Customization
-/// ```dart
-/// MhjMapsMap(
-///   center: MhjMapsLatLng(lat: 48.8566, lng: 2.3522),
-///   zoom: 15,
-///   minZoom: 4,
-///   maxZoom: 18,
-///   showZoomControls: true,
-///   showAttribution: true,
-///   tileProvider: MhjMapsTileProvider.custom(
-///     urlTemplate: 'https://mytiles.example.com/{z}/{x}/{y}.png',
-///     name: 'My Custom Tiles',
-///   ),
-///   onTap: (position) => print('Tapped at $position'),
-///   onLongPress: (position) => print('Long pressed at $position'),
-///   onMapCreated: (controller) {
-///     controller.addMarker(position: myPos);
-///     controller.drawRoute(myPolyline);
-///   },
+///   center: paris,
+///   showUserLocation: true,
+///   followUser: true,
+///   showLocationButton: true,
+///   showScale: true,
+///   onLocationUpdate: (pos) => print(pos),
 /// )
 /// ```
 class MhjMapsMap extends StatefulWidget {
@@ -417,8 +479,26 @@ class MhjMapsMap extends StatefulWidget {
   /// Whether to show the user's location (requires location permissions).
   final bool showUserLocation;
 
+  /// When true, camera follows the user on every GPS fix.
+  final bool followUser;
+
+  /// Whether to show a "locate me" floating button.
+  final bool showLocationButton;
+
+  /// Custom user-location dot. Defaults to a blue dot.
+  final Widget? userMarker;
+
+  /// Color of the accuracy circle + default dot.
+  final Color accuracyColor;
+
   /// Whether the map is interactive (scroll/zoom).
   final bool interactive;
+
+  /// Gesture flags (see [MhjMapsInteractiveFlags]). Ignored if !interactive.
+  final int interactiveFlags;
+
+  /// Constrains the camera center inside these bounds.
+  final MhjMapsBounds? maxBounds;
 
   /// Whether to use large zoom buttons.
   final bool useLargeZoomButtons;
@@ -444,6 +524,9 @@ class MhjMapsMap extends StatefulWidget {
   /// Callback when the camera position changes.
   final Function(MhjMapsLatLng center, double zoom)? onCameraMove;
 
+  /// Callback on every GPS fix when location is enabled.
+  final Function(MhjMapsLatLng position)? onLocationUpdate;
+
   /// Additional layers to render on top of the map.
   final List<Widget>? additionalLayers;
 
@@ -463,7 +546,13 @@ class MhjMapsMap extends StatefulWidget {
     this.showCompass = false,
     this.showScale = false,
     this.showUserLocation = false,
+    this.followUser = false,
+    this.showLocationButton = false,
+    this.userMarker,
+    this.accuracyColor = const Color(0xFF3b82f6),
     this.interactive = true,
+    this.interactiveFlags = MhjMapsInteractiveFlags.all,
+    this.maxBounds,
     this.useLargeZoomButtons = false,
     this.backgroundColor = const Color(0xFFE8E8E8),
     this.defaultPolylineStrokeWidth = 4.0,
@@ -472,6 +561,7 @@ class MhjMapsMap extends StatefulWidget {
     this.onTap,
     this.onLongPress,
     this.onCameraMove,
+    this.onLocationUpdate,
     this.additionalLayers,
   });
 
@@ -481,10 +571,21 @@ class MhjMapsMap extends StatefulWidget {
 
 class _MhjMapsMapState extends State<MhjMapsMap> {
   late MhjMapsMapController _controller;
+  MhjMapsLocationService? _locationService;
+  StreamSubscription<MhjMapsLocationData>? _locationSub;
+  MhjMapsLatLng? _userPosition;
+  double? _userHeading;
+  double _currentZoom = 13;
+  MhjMapsLatLng _currentCenter = const MhjMapsLatLng(lat: 0, lng: 0);
+  bool _following = false;
+  bool _locating = false;
 
   @override
   void initState() {
     super.initState();
+    _currentZoom = widget.zoom;
+    _currentCenter = widget.center;
+    _following = widget.followUser;
     _controller = MhjMapsMapController(onUpdate: () {
       if (mounted) setState(() {});
     });
@@ -493,6 +594,7 @@ class _MhjMapsMapState extends State<MhjMapsMap> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _applyThemeDefaults();
       widget.onMapCreated?.call(_controller);
+      if (widget.showUserLocation || widget.followUser) _startLocation();
     });
   }
 
@@ -502,6 +604,24 @@ class _MhjMapsMapState extends State<MhjMapsMap> {
     if (widget.theme != oldWidget.theme) {
       _applyThemeDefaults();
     }
+    if (widget.followUser != oldWidget.followUser) {
+      _following = widget.followUser;
+    }
+    final needLoc = widget.showUserLocation || widget.followUser;
+    final hadLoc = oldWidget.showUserLocation || oldWidget.followUser;
+    if (needLoc && !hadLoc) {
+      _startLocation();
+    } else if (!needLoc && hadLoc) {
+      _stopLocation();
+      _controller.clearUserLocation();
+    }
+  }
+
+  @override
+  void dispose() {
+    _stopLocation();
+    _locationService?.dispose();
+    super.dispose();
   }
 
   void _applyThemeDefaults() {
@@ -517,6 +637,66 @@ class _MhjMapsMapState extends State<MhjMapsMap> {
     hex = hex.replaceFirst('#', '');
     if (hex.length == 6) hex = 'FF$hex';
     return Color(int.parse(hex, radix: 16));
+  }
+
+  Future<void> _startLocation() async {
+    _locationService ??= MhjMapsLocationService();
+    final ok = await _locationService!.requestPermission();
+    if (!ok || !mounted) return;
+    final current = await _locationService!.getCurrentPosition();
+    if (current != null && mounted) _onFix(current);
+    await _locationSub?.cancel();
+    await _locationService!.startTracking();
+    _locationSub = _locationService!.stream.listen(_onFix);
+  }
+
+  Future<void> _stopLocation() async {
+    await _locationSub?.cancel();
+    _locationSub = null;
+    await _locationService?.stopTracking();
+  }
+
+  void _onFix(MhjMapsLocationData fix) {
+    if (!mounted) return;
+    setState(() {
+      _userPosition = fix.position;
+      _userHeading = fix.headingDegrees;
+    });
+    _controller.updateUserLocation(
+      fix.position,
+      accuracyMeters: fix.accuracyMeters,
+      headingDegrees: fix.headingDegrees,
+      marker: widget.userMarker,
+      accuracyColor: widget.accuracyColor,
+    );
+    widget.onLocationUpdate?.call(fix.position);
+    if (_following && mounted) {
+      _controller.animateTo(fix.position);
+    }
+  }
+
+  Future<void> _locateMe() async {
+    setState(() => _locating = true);
+    _locationService ??= MhjMapsLocationService();
+    final fix = await _locationService!.getCurrentPosition();
+    if (!mounted) return;
+    setState(() => _locating = false);
+    if (fix == null) {
+      ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+        const SnackBar(content: Text('Location unavailable')),
+      );
+      return;
+    }
+    _onFix(fix);
+    // Enable follow until user drags manually (unless forced by prop).
+    setState(() => _following = true);
+    _controller.moveTo(fix.position, zoom: _currentZoom < 14 ? 16 : _currentZoom);
+    if (!widget.showUserLocation) {
+      // Keep tracking so the dot stays live after "locate me".
+      await _locationSub?.cancel();
+      await _locationService!.startTracking();
+      _locationSub = _locationService!.stream.listen(_onFix);
+    }
   }
 
   // Resolve the tile configuration from theme > tileProvider > tileUrl > default
@@ -544,8 +724,27 @@ class _MhjMapsMapState extends State<MhjMapsMap> {
     return 19;
   }
 
+  CameraConstraint? get _cameraConstraint {
+    final b = widget.maxBounds;
+    if (b == null) return null;
+    return CameraConstraint.containCenter(
+      bounds: LatLngBounds(
+        LatLng(b.southWest.lat, b.southWest.lng),
+        LatLng(b.northEast.lat, b.northEast.lng),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final isDark = widget.theme?.isDark ?? false;
+    final userMarkers = <Marker>[
+      if (_controller._userMarker != null) _controller._userMarker!,
+    ];
+    final accuracyCircles = <CircleMarker>[
+      if (_controller._accuracyCircle != null) _controller._accuracyCircle!,
+    ];
+
     return Stack(
       children: [
         FlutterMap(
@@ -556,10 +755,14 @@ class _MhjMapsMapState extends State<MhjMapsMap> {
             minZoom: widget.minZoom,
             maxZoom: widget.maxZoom,
             initialRotation: widget.rotation,
+            interactionOptions: InteractionOptions(
+              flags: widget.interactive
+                  ? widget.interactiveFlags
+                  : MhjMapsInteractiveFlags.none,
+            ),
+            cameraConstraint: _cameraConstraint ?? const CameraConstraint.unconstrained(),
             backgroundColor: widget.backgroundColor ??
-                (widget.theme?.isDark == true
-                    ? const Color(0xFF1a1a2e)
-                    : const Color(0xFFE8E8E8)),
+                (isDark ? const Color(0xFF1a1a2e) : const Color(0xFFE8E8E8)),
             onTap: widget.onTap != null
                 ? (tapPosition, point) {
                     widget.onTap!(MhjMapsLatLng(
@@ -576,21 +779,24 @@ class _MhjMapsMapState extends State<MhjMapsMap> {
                     ));
                   }
                 : null,
-            onPositionChanged: widget.onCameraMove != null
-                ? (camera, hasGesture) {
-                    final center = camera.center;
-                    final zoom = camera.zoom;
-                    if (center != null && zoom != null) {
-                      widget.onCameraMove!(
-                        MhjMapsLatLng(
-                          lat: center.latitude,
-                          lng: center.longitude,
-                        ),
-                        zoom,
-                      );
-                    }
-                  }
-                : null,
+            onPositionChanged: (camera, hasGesture) {
+              if (hasGesture && !widget.followUser) {
+                // Manual drag breaks temporary follow (locate-me mode).
+                if (_following) setState(() => _following = false);
+              }
+              try {
+                _currentZoom = camera.zoom;
+                _currentCenter = MhjMapsLatLng(
+                  lat: camera.center.latitude,
+                  lng: camera.center.longitude,
+                );
+              } catch (_) {}
+              if (mounted &&
+                  (widget.onCameraMove != null || widget.showScale)) {
+                setState(() {});
+              }
+              widget.onCameraMove?.call(_currentCenter, _currentZoom);
+            },
           ),
           children: [
             TileLayer(
@@ -599,11 +805,15 @@ class _MhjMapsMapState extends State<MhjMapsMap> {
               subdomains: _resolvedSubdomains,
               maxZoom: _resolvedMaxZoom.toDouble(),
             ),
-            CircleLayer(circles: _controller._circles),
+            CircleLayer(circles: [
+              ..._controller._circles,
+              ...accuracyCircles,
+            ]),
             PolylineLayer(polylines: _controller._polylines),
-            MarkerLayer(markers: _controller._markers),
-            if (widget.showUserLocation)
-               const MarkerLayer(markers: []), // Placeholder for user location marker
+            MarkerLayer(markers: [
+              ..._controller._markers,
+              ...userMarkers,
+            ]),
             if (widget.additionalLayers != null) ...widget.additionalLayers!,
             if (widget.showAttribution && _resolvedAttribution.isNotEmpty)
               RichAttributionWidget(
@@ -626,14 +836,14 @@ class _MhjMapsMapState extends State<MhjMapsMap> {
                 _ZoomButton(
                   icon: Icons.add,
                   onPressed: _controller.zoomIn,
-                  isDark: widget.theme?.isDark ?? false,
+                  isDark: isDark,
                   large: widget.useLargeZoomButtons,
                 ),
                 const SizedBox(height: 8),
                 _ZoomButton(
                   icon: Icons.remove,
                   onPressed: _controller.zoomOut,
-                  isDark: widget.theme?.isDark ?? false,
+                  isDark: isDark,
                   large: widget.useLargeZoomButtons,
                 ),
               ],
@@ -646,7 +856,32 @@ class _MhjMapsMapState extends State<MhjMapsMap> {
             top: 16,
             child: _CompassButton(
               onPressed: _controller.resetRotation,
-              isDark: widget.theme?.isDark ?? false,
+              isDark: isDark,
+            ),
+          ),
+        // Scale bar
+        if (widget.showScale)
+          Positioned(
+            left: 12,
+            bottom: widget.showAttribution ? 32 : 12,
+            child: MhjMapsScaleBar(
+              zoom: _currentZoom,
+              latitude: _currentCenter.lat,
+              isDark: isDark,
+            ),
+          ),
+        // Locate-me button
+        if (widget.showLocationButton)
+          Positioned(
+            right: 16,
+            bottom: widget.showZoomControls
+                ? (widget.showAttribution ? 150 : 126)
+                : (widget.showAttribution ? 40 : 16),
+            child: _LocateButton(
+              isDark: isDark,
+              locating: _locating,
+              following: _following || widget.followUser,
+              onPressed: _locateMe,
             ),
           ),
       ],
@@ -709,14 +944,58 @@ class _CompassButton extends StatelessWidget {
       child: InkWell(
         onTap: onPressed,
         customBorder: const CircleBorder(),
-        child: SizedBox(
+        child: const SizedBox(
           width: 44,
           height: 44,
           child: Icon(
             Icons.explore,
             size: 24,
-            color: isDark ? Colors.white70 : Colors.black87,
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _LocateButton extends StatelessWidget {
+  final bool isDark;
+  final bool locating;
+  final bool following;
+  final VoidCallback onPressed;
+
+  const _LocateButton({
+    required this.isDark,
+    required this.locating,
+    required this.following,
+    required this.onPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      elevation: 4,
+      shape: const CircleBorder(),
+      color: following
+          ? const Color(0xFF3b82f6)
+          : (isDark ? const Color(0xFF2a2a3e) : Colors.white),
+      child: InkWell(
+        onTap: onPressed,
+        customBorder: const CircleBorder(),
+        child: SizedBox(
+          width: 44,
+          height: 44,
+          child: locating
+              ? const Padding(
+                  padding: EdgeInsets.all(12),
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : Icon(
+                  following ? Icons.my_location : Icons.location_searching,
+                  size: 22,
+                  color: following
+                      ? Colors.white
+                      : (isDark ? Colors.white70 : Colors.black87),
+                ),
         ),
       ),
     );
