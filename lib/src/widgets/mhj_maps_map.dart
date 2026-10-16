@@ -785,11 +785,15 @@ class _MhjMapsMapState extends State<MhjMapsMap> {
                 if (_following) setState(() => _following = false);
               }
               try {
-                _currentZoom = camera.zoom;
-                _currentCenter = MhjMapsLatLng(
-                  lat: camera.center.latitude,
-                  lng: camera.center.longitude,
-                );
+                final zoom = camera.zoom;
+                if (zoom != null) _currentZoom = zoom;
+                final center = camera.center;
+                if (center != null) {
+                  _currentCenter = MhjMapsLatLng(
+                    lat: center.latitude,
+                    lng: center.longitude,
+                  );
+                }
               } catch (_) {}
               if (mounted &&
                   (widget.onCameraMove != null || widget.showScale)) {
